@@ -26,7 +26,7 @@ poetry run python -m spacy download en_core_web_sm
 指定ディレクトリ内の全PDFファイルをベクターデータベースにインデックスします。
 
 ```bash
-poetry run less index <ディレクトリパス>
+make index DIR=<ディレクトリパス>
 ```
 
 ### 検索
@@ -34,15 +34,15 @@ poetry run less index <ディレクトリパス>
 インデックス済みドキュメントに対してセマンティック検索を実行します。
 
 ```bash
-poetry run less search "<検索クエリ>"
+make search Q="<検索クエリ>"
 ```
 
-## 開発
+## Makeコマンド一覧
 
-```bash
-# テストの実行
-poetry run pytest
-
-# リンターの実行
-poetry run ruff check .
-```
+| コマンド | 説明 |
+|---|---|
+| `make index DIR=<パス>` | 指定ディレクトリのPDFをインデックスする |
+| `make search Q="<クエリ>"` | インデックス済みドキュメントを検索する |
+| `make test` | テストを実行する |
+| `make lint` | リンター（ruff）を実行する |
+| `make clean-db` | ChromaDBのデータを削除する |
