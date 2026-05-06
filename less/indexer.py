@@ -46,7 +46,14 @@ def index_directory(directory, db_path):
             continue
         ids = [f"{pdf_path.stem}_{i}" for i in range(len(chunks))]
         metadatas = [{"source": str(pdf_path), "chunk_index": i} for i in range(len(chunks))]
-        collection.add(documents=chunks, ids=ids, metadatas=metadatas)
+        batch_size = 5000
+        for start in range(0, len(chunks), batch_size):
+            end = start + batch_size
+            collection.add(
+                documents=chunks[start:end],
+                ids=ids[start:end],
+                metadatas=metadatas[start:end],
+            )
         total_chunks += len(chunks)
 
     return {"files": len(pdfs), "chunks": total_chunks}

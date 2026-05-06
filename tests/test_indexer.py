@@ -1,9 +1,11 @@
-import tempfile
 from pathlib import Path
 
+import pytest
 from pypdf import PdfWriter
 
 from less.indexer import chunk_text, extract_text, find_pdfs, index_directory
+
+SAMPLE_PDF = Path(__file__).parent / "Textbook.pdf"
 
 
 def _create_pdf(path, text):
@@ -150,3 +152,26 @@ class TestIndexDirectory:
 
         assert stats["files"] == 0
         assert stats["chunks"] == 0
+
+
+@pytest.mark.skipif(not SAMPLE_PDF.exists(), reason="サンプルPDFが見つかりません")
+class TestWithRealPdf:
+    def test_extract_text_from_real_pdf(self):
+        text = extract_text(SAMPLE_PDF)
+
+        assert len(text) > 0
+        assert "Sensory Systems" in text
+
+    def test_chunk_real_pdf_text(self):
+        text = extract_text(SAMPLE_PDF)
+        chunks = chunk_text(text)
+
+        assert len(chunks) > 10
+        assert all(len(c) > 0 for c in chunks)
+
+    def test_index_real_pdf(self, tmp_path):
+        db_path = tmp_path / "chroma_db"
+        stats = index_directory(SAMPLE_PDF.parent, db_path)
+
+        assert stats["files"] == 1
+        assert stats["chunks"] > 10
