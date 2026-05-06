@@ -19,6 +19,7 @@ class TestSearch:
         first = results[0]
         assert "document" in first
         assert "source" in first
+        assert "pages" in first
         assert "distance" in first
 
     def test_returns_most_relevant_result_first(self, tmp_path):
@@ -66,6 +67,15 @@ class TestSearchWithRealPdf:
         assert len(results) > 0
         assert "Textbook.pdf" in results[0]["source"]
 
+    def test_search_returns_page_numbers(self, tmp_path):
+        db_path = tmp_path / "chroma_db"
+        index_directory(SAMPLE_PDF.parent, db_path)
+
+        results = search("sensory receptors", db_path)
+
+        assert len(results) > 0
+        assert results[0]["pages"] != ""
+
 
 def _index_sample_text(db_path):
     import chromadb
@@ -80,8 +90,8 @@ def _index_sample_text(db_path):
         ],
         ids=["doc_0", "doc_1", "doc_2"],
         metadatas=[
-            {"source": "science.pdf", "chunk_index": 0},
-            {"source": "biology.pdf", "chunk_index": 0},
-            {"source": "geography.pdf", "chunk_index": 0},
+            {"source": "science.pdf", "chunk_index": 0, "pages": "1"},
+            {"source": "biology.pdf", "chunk_index": 0, "pages": "2,3"},
+            {"source": "geography.pdf", "chunk_index": 0, "pages": "1"},
         ],
     )

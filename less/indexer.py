@@ -9,44 +9,61 @@ def find_pdfs(directory):
     return sorted(Path(directory).rglob("*.pdf"))
 
 
-def extract_text(pdf_path):
+def extract_pages(pdf_path):
     reader = PdfReader(pdf_path)
-    text = ""
-    for page in reader.pages:
-        page_text = page.extract_text()
-        if page_text:
-            text += page_text
-    return text.strip()
+    pages = []
+    for i, page in enumerate(reader.pages, 1):
+        text = page.extract_text()
+        if text and text.strip():
+            pages.append({"page": i, "text": text.strip()})
+    return pages
 
 
 MIN_CHUNK_SIZE = 500
 
 
-def chunk_text(text, min_chunk_size=MIN_CHUNK_SIZE):
-    if not text:
+def chunk_text(pages, min_chunk_size=MIN_CHUNK_SIZE):
+    if not pages:
         return []
+
     nlp = spacy.blank("en")
     nlp.add_pipe("sentencizer")
-    doc = nlp(text)
-    sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
+
+    sentences = []
+    for page in pages:
+        doc = nlp(page["text"])
+        for sent in doc.sents:
+            text = sent.text.strip()
+            if text:
+                sentences.append({"text": text, "page": page["page"]})
 
     chunks = []
-    current = []
+    current_texts = []
+    current_pages = set()
     current_len = 0
 
     for sentence in sentences:
-        current.append(sentence)
-        current_len += len(sentence)
+        current_texts.append(sentence["text"])
+        current_pages.add(sentence["page"])
+        current_len += len(sentence["text"])
         if current_len >= min_chunk_size:
-            chunks.append(" ".join(current))
-            current = []
+            chunks.append({
+                "text": " ".join(current_texts),
+                "pages": sorted(current_pages),
+            })
+            current_texts = []
+            current_pages = set()
             current_len = 0
 
-    if current:
+    if current_texts:
         if chunks:
-            chunks[-1] += " " + " ".join(current)
+            chunks[-1]["text"] += " " + " ".join(current_texts)
+            chunks[-1]["pages"] = sorted(set(chunks[-1]["pages"]) | current_pages)
         else:
-            chunks.append(" ".join(current))
+            chunks.append({
+                "text": " ".join(current_texts),
+                "pages": sorted(current_pages),
+            })
 
     return chunks
 
@@ -54,13 +71,21 @@ def chunk_text(text, min_chunk_size=MIN_CHUNK_SIZE):
 def store_chunks(chunks, pdf_path, collection):
     if not chunks:
         return
+    documents = [c["text"] for c in chunks]
     ids = [f"{pdf_path.stem}_{i}" for i in range(len(chunks))]
-    metadatas = [{"source": str(pdf_path), "chunk_index": i} for i in range(len(chunks))]
+    metadatas = [
+        {
+            "source": str(pdf_path),
+            "chunk_index": i,
+            "pages": ",".join(str(p) for p in c["pages"]),
+        }
+        for i, c in enumerate(chunks)
+    ]
     batch_size = 5000
-    for start in range(0, len(chunks), batch_size):
+    for start in range(0, len(documents), batch_size):
         end = start + batch_size
         collection.add(
-            documents=chunks[start:end],
+            documents=documents[start:end],
             ids=ids[start:end],
             metadatas=metadatas[start:end],
         )
@@ -80,10 +105,10 @@ def index_directory(directory, db_path):
 
     total_chunks = 0
     for pdf_path in pdfs:
-        text = extract_text(pdf_path)
-        if not text:
+        pages = extract_pages(pdf_path)
+        if not pages:
             continue
-        chunks = chunk_text(text)
+        chunks = chunk_text(pages)
         store_chunks(chunks, pdf_path, collection)
         total_chunks += len(chunks)
 

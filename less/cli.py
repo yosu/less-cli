@@ -2,7 +2,7 @@ from pathlib import Path
 
 import click
 
-from less.indexer import find_pdfs, extract_text, chunk_text, create_collection, store_chunks
+from less.indexer import find_pdfs, extract_pages, chunk_text, create_collection, store_chunks
 from less.searcher import search as do_search
 
 DEFAULT_DB_PATH = Path.cwd() / "chroma_data"
@@ -33,11 +33,11 @@ def index(directory, db_path):
 
     for pdf_path in pdfs:
         click.echo(f"  処理中: {pdf_path.name}")
-        text = extract_text(pdf_path)
-        if not text:
+        pages = extract_pages(pdf_path)
+        if not pages:
             click.echo(f"    テキストを抽出できませんでした。スキップします。")
             continue
-        chunks = chunk_text(text)
+        chunks = chunk_text(pages)
         click.echo(f"    {len(chunks)}チャンクを抽出しました。")
         store_chunks(chunks, pdf_path, collection)
         total_chunks += len(chunks)
@@ -65,7 +65,8 @@ def search(query, db_path, n_results):
     for i, result in enumerate(results, 1):
         source = Path(result["source"]).name
         distance = result["distance"]
+        pages = result["pages"]
         document = result["document"]
-        click.echo(f"[{i}] ({source}, スコア: {distance:.4f})")
+        click.echo(f"[{i}] ({source}, p.{pages}, スコア: {distance:.4f})")
         click.echo(f"    {document}")
         click.echo()

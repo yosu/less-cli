@@ -23,6 +23,7 @@ def search(query, db_path, n_results=5):
         {
             "document": doc,
             "source": meta["source"],
+            "pages": meta.get("pages", ""),
             "distance": dist,
         }
         for doc, meta, dist in zip(

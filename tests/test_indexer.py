@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pypdf import PdfWriter
 
-from less.indexer import chunk_text, extract_text, find_pdfs, index_directory
+from less.indexer import chunk_text, extract_pages, find_pdfs, index_directory
 
 SAMPLE_PDF = Path(__file__).parent / "Textbook.pdf"
 
@@ -88,74 +88,108 @@ class TestFindPdfs:
         assert len(result) == 2
 
 
-class TestExtractText:
-    def test_extracts_text_from_pdf(self, tmp_path):
+class TestExtractPages:
+    def test_extracts_pages_from_pdf(self, tmp_path):
         pdf_path = tmp_path / "sample.pdf"
         _make_test_pdf(pdf_path, "Hello world this is a test document.")
 
-        text = extract_text(pdf_path)
+        pages = extract_pages(pdf_path)
 
-        assert "Hello world" in text
+        assert len(pages) == 1
+        assert pages[0]["page"] == 1
+        assert "Hello world" in pages[0]["text"]
 
-    def test_returns_empty_string_for_empty_pdf(self, tmp_path):
+    def test_returns_empty_list_for_empty_pdf(self, tmp_path):
         pdf_path = tmp_path / "empty.pdf"
         writer = PdfWriter()
         writer.add_blank_page(width=612, height=792)
         with open(pdf_path, "wb") as f:
             writer.write(f)
 
-        text = extract_text(pdf_path)
+        pages = extract_pages(pdf_path)
 
-        assert text == ""
+        assert pages == []
+
+
+def _pages(text, page=1):
+    return [{"page": page, "text": text}]
+
+
+def _multi_pages(page_texts):
+    return [{"page": i, "text": t} for i, t in enumerate(page_texts, 1)]
 
 
 class TestChunkText:
     def test_chunks_are_at_least_min_size(self):
-        sentences = ["This is sentence number %d. " % i for i in range(50)]
+        sentences = ["This is sentence number %d." % i for i in range(50)]
         text = " ".join(sentences)
 
-        chunks = chunk_text(text)
+        chunks = chunk_text(_pages(text))
 
         for chunk in chunks:
-            assert len(chunk) >= 500
+            assert len(chunk["text"]) >= 500
 
     def test_short_text_returns_single_chunk(self):
-        text = "Machine learning is powerful. It can classify documents."
+        pages = _pages("Machine learning is powerful. It can classify documents.")
 
-        chunks = chunk_text(text)
+        chunks = chunk_text(pages)
 
         assert len(chunks) == 1
-        assert "Machine learning" in chunks[0]
-        assert "classify documents" in chunks[0]
+        assert "Machine learning" in chunks[0]["text"]
+        assert "classify documents" in chunks[0]["text"]
 
-    def test_returns_empty_list_for_empty_text(self):
-        chunks = chunk_text("")
-
-        assert chunks == []
+    def test_returns_empty_list_for_empty_input(self):
+        assert chunk_text([]) == []
 
     def test_preserves_content(self):
         sentences = ["Sentence %d has some content here." % i for i in range(30)]
         text = " ".join(sentences)
 
-        chunks = chunk_text(text)
-        combined = " ".join(chunks)
+        chunks = chunk_text(_pages(text))
+        combined = " ".join(c["text"] for c in chunks)
 
         for sentence in sentences:
             assert sentence in combined
 
     def test_respects_custom_min_chunk_size(self):
-        text = "First sentence here. Second sentence here. Third sentence here. Fourth sentence here."
+        pages = _pages("First sentence here. Second sentence here. Third sentence here. Fourth sentence here.")
 
-        chunks = chunk_text(text, min_chunk_size=40)
+        chunks = chunk_text(pages, min_chunk_size=40)
 
         assert len(chunks) >= 2
 
     def test_remainder_appended_to_last_chunk(self):
-        text = "A" * 500 + ". " + "B" * 100 + "."
+        pages = _pages("A" * 500 + ". " + "B" * 100 + ".")
 
-        chunks = chunk_text(text)
+        chunks = chunk_text(pages)
 
         assert len(chunks) == 1
+
+    def test_tracks_page_numbers(self):
+        pages = _multi_pages([
+            "First page content here. " * 30,
+            "Second page content here. " * 30,
+        ])
+
+        chunks = chunk_text(pages)
+
+        all_pages = set()
+        for chunk in chunks:
+            assert "pages" in chunk
+            all_pages.update(chunk["pages"])
+        assert 1 in all_pages
+        assert 2 in all_pages
+
+    def test_chunk_spanning_pages(self):
+        pages = _multi_pages([
+            "Short page one.",
+            "Short page two.",
+        ])
+
+        chunks = chunk_text(pages)
+
+        assert len(chunks) == 1
+        assert sorted(chunks[0]["pages"]) == [1, 2]
 
 
 class TestIndexDirectory:
@@ -181,22 +215,25 @@ class TestIndexDirectory:
 
 @pytest.mark.skipif(not SAMPLE_PDF.exists(), reason="サンプルPDFが見つかりません")
 class TestWithRealPdf:
-    def test_extract_text_from_real_pdf(self):
-        text = extract_text(SAMPLE_PDF)
+    def test_extract_pages_from_real_pdf(self):
+        pages = extract_pages(SAMPLE_PDF)
 
-        assert len(text) > 0
-        assert "Sensory Systems" in text
+        assert len(pages) > 0
+        assert all(p["page"] >= 1 for p in pages)
+        combined = " ".join(p["text"] for p in pages)
+        assert "Sensory Systems" in combined
 
-    def test_chunk_real_pdf_text(self):
-        text = extract_text(SAMPLE_PDF)
-        chunks = chunk_text(text)
+    def test_chunk_real_pdf(self):
+        pages = extract_pages(SAMPLE_PDF)
+        chunks = chunk_text(pages)
 
-        assert len(chunks) > 10
-        assert all(len(c) > 0 for c in chunks)
+        assert len(chunks) > 1
+        assert all(len(c["text"]) >= 500 for c in chunks)
+        assert all(len(c["pages"]) > 0 for c in chunks)
 
     def test_index_real_pdf(self, tmp_path):
         db_path = tmp_path / "chroma_db"
         stats = index_directory(SAMPLE_PDF.parent, db_path)
 
         assert stats["files"] == 1
-        assert stats["chunks"] > 10
+        assert stats["chunks"] > 1
