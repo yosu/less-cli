@@ -110,13 +110,23 @@ class TestExtractText:
 
 
 class TestChunkText:
-    def test_splits_text_into_sentences(self):
-        text = "This is the first sentence. This is the second sentence. And here is the third one."
+    def test_chunks_are_at_least_min_size(self):
+        sentences = ["This is sentence number %d. " % i for i in range(50)]
+        text = " ".join(sentences)
 
         chunks = chunk_text(text)
 
-        assert len(chunks) >= 2
-        assert all(isinstance(c, str) for c in chunks)
+        for chunk in chunks:
+            assert len(chunk) >= 500
+
+    def test_short_text_returns_single_chunk(self):
+        text = "Machine learning is powerful. It can classify documents."
+
+        chunks = chunk_text(text)
+
+        assert len(chunks) == 1
+        assert "Machine learning" in chunks[0]
+        assert "classify documents" in chunks[0]
 
     def test_returns_empty_list_for_empty_text(self):
         chunks = chunk_text("")
@@ -124,13 +134,28 @@ class TestChunkText:
         assert chunks == []
 
     def test_preserves_content(self):
-        text = "Machine learning is powerful. It can classify documents."
+        sentences = ["Sentence %d has some content here." % i for i in range(30)]
+        text = " ".join(sentences)
+
+        chunks = chunk_text(text)
+        combined = " ".join(chunks)
+
+        for sentence in sentences:
+            assert sentence in combined
+
+    def test_respects_custom_min_chunk_size(self):
+        text = "First sentence here. Second sentence here. Third sentence here. Fourth sentence here."
+
+        chunks = chunk_text(text, min_chunk_size=40)
+
+        assert len(chunks) >= 2
+
+    def test_remainder_appended_to_last_chunk(self):
+        text = "A" * 500 + ". " + "B" * 100 + "."
 
         chunks = chunk_text(text)
 
-        combined = " ".join(chunks)
-        assert "Machine learning" in combined
-        assert "classify documents" in combined
+        assert len(chunks) == 1
 
 
 class TestIndexDirectory:

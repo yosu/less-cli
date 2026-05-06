@@ -19,13 +19,36 @@ def extract_text(pdf_path):
     return text.strip()
 
 
-def chunk_text(text):
+MIN_CHUNK_SIZE = 500
+
+
+def chunk_text(text, min_chunk_size=MIN_CHUNK_SIZE):
     if not text:
         return []
     nlp = spacy.blank("en")
     nlp.add_pipe("sentencizer")
     doc = nlp(text)
-    return [sent.text.strip() for sent in doc.sents if sent.text.strip()]
+    sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
+
+    chunks = []
+    current = []
+    current_len = 0
+
+    for sentence in sentences:
+        current.append(sentence)
+        current_len += len(sentence)
+        if current_len >= min_chunk_size:
+            chunks.append(" ".join(current))
+            current = []
+            current_len = 0
+
+    if current:
+        if chunks:
+            chunks[-1] += " " + " ".join(current)
+        else:
+            chunks.append(" ".join(current))
+
+    return chunks
 
 
 def store_chunks(chunks, pdf_path, collection):
