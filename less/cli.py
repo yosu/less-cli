@@ -3,6 +3,7 @@ from pathlib import Path
 import click
 
 from less.indexer import find_pdfs, extract_text, chunk_text, create_collection, store_chunks
+from less.searcher import search as do_search
 
 DEFAULT_DB_PATH = Path.cwd() / "chroma_data"
 
@@ -46,6 +47,25 @@ def index(directory, db_path):
 
 @main.command()
 @click.argument("query")
-def search(query):
+@click.option("--db-path", default=str(DEFAULT_DB_PATH), help="ChromaDBの保存先パス")
+@click.option("-n", "--n-results", default=5, help="返す結果の最大件数")
+def search(query, db_path, n_results):
     """インデックス済みドキュメントをセマンティック検索する。"""
     click.echo(f"検索クエリ: {query}")
+    click.echo("検索中...")
+
+    results = do_search(query, db_path, n_results=n_results)
+
+    if not results:
+        click.echo("結果が見つかりませんでした。")
+        return
+
+    click.echo(f"{len(results)}件の結果が見つかりました。\n")
+
+    for i, result in enumerate(results, 1):
+        source = Path(result["source"]).name
+        distance = result["distance"]
+        document = result["document"]
+        click.echo(f"[{i}] ({source}, スコア: {distance:.4f})")
+        click.echo(f"    {document}")
+        click.echo()
