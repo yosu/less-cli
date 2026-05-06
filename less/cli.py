@@ -2,7 +2,7 @@ from pathlib import Path
 
 import click
 
-from less.indexer import find_pdfs, extract_text, chunk_text, index_directory
+from less.indexer import find_pdfs, extract_text, chunk_text, create_collection, store_chunks
 
 DEFAULT_DB_PATH = Path.cwd() / "chroma_data"
 
@@ -27,6 +27,9 @@ def index(directory, db_path):
 
     click.echo(f"{len(pdfs)}件のPDFファイルを検出しました。")
 
+    collection = create_collection(db_path)
+    total_chunks = 0
+
     for pdf_path in pdfs:
         click.echo(f"  処理中: {pdf_path.name}")
         text = extract_text(pdf_path)
@@ -35,10 +38,10 @@ def index(directory, db_path):
             continue
         chunks = chunk_text(text)
         click.echo(f"    {len(chunks)}チャンクを抽出しました。")
+        store_chunks(chunks, pdf_path, collection)
+        total_chunks += len(chunks)
 
-    click.echo("ベクターデータベースにインデックス中...")
-    stats = index_directory(directory, db_path)
-    click.echo(f"完了: {stats['files']}ファイル, {stats['chunks']}チャンクをインデックスしました。")
+    click.echo(f"完了: {len(pdfs)}ファイル, {total_chunks}チャンクをインデックスしました。")
 
 
 @main.command()
