@@ -1,0 +1,32 @@
+[tool.poetry]
+name = "less-cli"
+version = "0.1.0"
+description = "LLM Empowered Semantic Search — PDFドキュメントのセマンティック検索CLI"
+authors = []
+readme = "README.md"
+packages = [{include = "less"}]
+
+[tool.poetry.scripts]
+less = "less.cli:main"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+chromadb = "^1.0"
+pypdf = "^5.0"
+spacy = "^3.8"
+click = "^8.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+ruff = "^0.11"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
