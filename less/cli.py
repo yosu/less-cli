@@ -35,7 +35,7 @@ def index(directory, db_path):
         click.echo(f"  処理中: {pdf_path.name}")
         pages = extract_pages(pdf_path)
         if not pages:
-            click.echo(f"    テキストを抽出できませんでした。スキップします。")
+            click.echo("    テキストを抽出できませんでした。スキップします。")
             continue
         chunks = chunk_text(pages)
         click.echo(f"    {len(chunks)}チャンクを抽出しました。")
